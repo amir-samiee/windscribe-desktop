@@ -1,0 +1,181 @@
+# Manual build. Tick the OSes you want; Windows is on by default.
+# Unsigned build: --build-app --dev-mode. macOS needs a Developer ID cert.
+name: Build executables
+
+on:
+  workflow_dispatch:
+    inputs:
+      windows:
+        description: Build the Windows executable
+        type: boolean
+        default: true
+      linux:
+        description: Build the Linux executable
+        type: boolean
+        default: false
+      macos:
+        description: Build the macOS executable (requires a Developer ID signing certificate)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows
+    if: ${{ inputs.windows }}
+    runs-on: windows-2022
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}\vcpkg
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: python -m pip install -r tools/requirements.txt
+
+      # Dependencies compile from source; caching the whole vcpkg tree keeps repeat runs
+      # fast. The installer script only re-clones when the cached commit is missing, so a
+      # restored cache is reused as-is.
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}
+          key: vcpkg-windows-${{ hashFiles('tools/vcpkg/vcpkg.json', 'tools/vcpkg/vcpkg-configuration.json') }}
+
+      - name: Set up vcpkg
+        run: |
+          git clone --depth 1 https://github.com/Windscribe/ws-vcpkg-registry.git
+          .\ws-vcpkg-registry\install-vcpkg\vcpkg_install.bat "$env:VCPKG_ROOT"
+
+      - name: Install bundled dependency libraries
+        env:
+          PYTHONIOENCODING: utf_8
+        run: |
+          cd tools/deps
+          python install_openvpn_dco.py
+          python install_wintun.py
+          python install_wstunnel.py
+
+      - name: Build the app
+        run: python tools/build_all.py --build-app --dev-mode
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windscribe-windows
+          path: build/src/client/Windscribe.exe
+
+  linux:
+    name: Linux
+    if: ${{ inputs.linux }}
+    runs-on: ubuntu-22.04
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # wstunnel is built from source with the Go toolchain (its go.mod requires >= 1.24).
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential patchelf fakeroot zip unzip \
+            libpam0g-dev libgl1-mesa-dev libnl-genl-3-dev pkg-config \
+            libcap-ng-dev libacl1-dev libnftables-dev wget autoconf libtool \
+            libfontconfig1-dev libfreetype6-dev \
+            libx11-dev libx11-xcb-dev libxext-dev libxfixes-dev libxi-dev libxrender-dev \
+            libxcb1-dev libxcb-cursor-dev libxcb-glx0-dev libxcb-keysyms1-dev \
+            libxcb-image0-dev libxcb-shm0-dev libxcb-icccm4-dev libxcb-sync-dev \
+            libxcb-xfixes0-dev libxcb-shape0-dev libxcb-randr0-dev \
+            libxcb-render-util0-dev libxcb-util-dev libxcb-xinerama0-dev libxcb-xkb-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev
+
+      - name: Install Python dependencies
+        run: python3 -m pip install -r tools/requirements.txt
+
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}
+          key: vcpkg-linux-${{ hashFiles('tools/vcpkg/vcpkg.json', 'tools/vcpkg/vcpkg-configuration.json') }}
+
+      - name: Set up vcpkg
+        run: |
+          git clone --depth 1 https://github.com/Windscribe/ws-vcpkg-registry.git
+          ./ws-vcpkg-registry/install-vcpkg/vcpkg_install.sh "$VCPKG_ROOT"
+
+      - name: Install bundled dependency libraries
+        run: ./tools/deps/install_wstunnel
+
+      - name: Build the app
+        run: python3 tools/build_all.py --build-app --dev-mode
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windscribe-linux
+          path: |
+            build/src/client/Windscribe
+            build/src/windscribe-cli/windscribe-cli
+            build-exe/*.deb
+
+  macos:
+    name: macOS
+    if: ${{ inputs.macos }}
+    runs-on: macos-15
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Install build tools
+        run: |
+          brew install libtool automake
+          # The macOS runner ships CMake 4.x, which breaks some vcpkg dependency builds
+          # (e.g. lzo); pin the latest 3.x as the repo recommends.
+          python3 -m pip install "cmake~=3.31.0"
+          cmake --version
+
+      - name: Install Python dependencies
+        run: python3 -m pip install -r tools/requirements.txt
+
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}
+          key: vcpkg-macos-${{ hashFiles('tools/vcpkg/vcpkg.json', 'tools/vcpkg/vcpkg-configuration.json') }}
+
+      - name: Set up vcpkg
+        run: |
+          git clone --depth 1 https://github.com/Windscribe/ws-vcpkg-registry.git
+          ./ws-vcpkg-registry/install-vcpkg/vcpkg_install.sh "$VCPKG_ROOT"
+
+      - name: Install bundled dependency libraries
+        run: ./tools/deps/install_wstunnel
+
+      - name: Build the app
+        run: python3 tools/build_all.py --build-app --dev-mode
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windscribe-macos
+          path: build/src/client/Windscribe.app
