@@ -6,6 +6,7 @@
 
 #include "connectstatehelper.h"
 #include "firewallstatehelper.h"
+#include "autotryconnectmanager.h"
 #include "locations/locationsmodel_manager.h"
 #include "preferences/accountinfo.h"
 #include "preferences/preferences.h"
@@ -94,6 +95,8 @@ public:
     void continueWithPrivKeyPasswordForOvpnConfig(const QString &password, bool bSave);
 
     gui_locations::LocationsModelManager *locationsModelManager();
+    // Walks every location on each protocol until one connects; the GUI drives it from the Auto-Try button.
+    AutoTryConnectManager *autoTryConnectManager() { return autoTryConnectManager_; }
 
     PreferencesHelper *getPreferencesHelper();
     Preferences *getPreferences();
@@ -301,6 +304,7 @@ private:
     quint32 cmdId_;
 
     gui_locations::LocationsModelManager *locationsModelManager_;
+    AutoTryConnectManager *autoTryConnectManager_;
 
     bool isCanLoginWithAuthHash_;
     bool isFirewallEnabled_;

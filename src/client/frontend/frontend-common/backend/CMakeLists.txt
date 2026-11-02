@@ -1,4 +1,6 @@
 target_sources(frontend-common PRIVATE
+    autotryconnectmanager.cpp
+    autotryconnectmanager.h
     backend.cpp
     backend.h
     connectstatehelper.cpp

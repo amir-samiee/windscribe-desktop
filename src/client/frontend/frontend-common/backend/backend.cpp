@@ -59,6 +59,7 @@ Backend::Backend(QObject *parent) : QObject(parent),
     connect(&preferences_, &Preferences::engineSettingsChanged, this, &Backend::onEngineSettingsChangedInPreferences);
 
     locationsModelManager_ = new gui_locations::LocationsModelManager(this);
+    autoTryConnectManager_ = new AutoTryConnectManager(this, this);
 
     connect(&connectStateHelper_, &ConnectStateHelper::connectStateChanged, this, &Backend::connectStateChanged);
     connect(&emergencyConnectStateHelper_, &ConnectStateHelper::connectStateChanged, this, &Backend::emergencyConnectStateChanged);
