@@ -96,6 +96,12 @@ private slots:
 
     // connect window signals
     void onConnectWindowConnectClick();
+    void onConnectWindowAutoTryClick();
+    void onAutoTryProgressChanged(int index, int total, const QString &protocolLabel, const QString &locationLabel);
+    void onAutoTryConnected();
+    void onAutoTryFailed();
+    void onAutoTryCancelled();
+    void onAutoTryAborted();
     void onConnectWindowFirewallClick();
     void onConnectWindowNetworkButtonClick();
     void onConnectWindowLocationsClick();

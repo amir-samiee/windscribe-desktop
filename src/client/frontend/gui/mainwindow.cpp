@@ -165,6 +165,11 @@ MainWindow::MainWindow() :
     connect(backend_, &Backend::clearWifiHistoryFinished, this, &MainWindow::onBackendClearWifiHistoryFinished);
     connect(backend_, &Backend::setRobertFilterResult, this, &MainWindow::onBackendSetRobertFilterResult);
     connect(backend_, &Backend::protocolStatusChanged, this, &MainWindow::onBackendProtocolStatusChanged);
+    connect(backend_->autoTryConnectManager(), &AutoTryConnectManager::progressChanged, this, &MainWindow::onAutoTryProgressChanged);
+    connect(backend_->autoTryConnectManager(), &AutoTryConnectManager::connected, this, &MainWindow::onAutoTryConnected);
+    connect(backend_->autoTryConnectManager(), &AutoTryConnectManager::failed, this, &MainWindow::onAutoTryFailed);
+    connect(backend_->autoTryConnectManager(), &AutoTryConnectManager::cancelled, this, &MainWindow::onAutoTryCancelled);
+    connect(backend_->autoTryConnectManager(), &AutoTryConnectManager::aborted, this, &MainWindow::onAutoTryAborted);
     connect(backend_, &Backend::splitTunnelingStartFailed, this, &MainWindow::onSplitTunnelingStartFailed);
     notificationsController_.connect(backend_, &Backend::notificationsChanged, &notificationsController_, &NotificationsController::updateNotifications);
     connect(this, &MainWindow::wireGuardKeyLimitUserResponse, backend_, &Backend::wireGuardKeyLimitUserResponse);
@@ -244,6 +249,7 @@ MainWindow::MainWindow() :
     connect(mainWindowController_->getConnectWindow(), &ConnectWindow::ConnectWindowItem::minimizeClick, this, &MainWindow::onMinimizeClick);
     connect(mainWindowController_->getConnectWindow(), &ConnectWindow::ConnectWindowItem::closeClick, this, &MainWindow::onCloseClick);
     connect(mainWindowController_->getConnectWindow(), &ConnectWindow::ConnectWindowItem::connectClick, this, &MainWindow::onConnectWindowConnectClick);
+    connect(mainWindowController_->getConnectWindow(), &ConnectWindow::ConnectWindowItem::autoTryClick, this, &MainWindow::onConnectWindowAutoTryClick);
     connect(mainWindowController_->getConnectWindow(), &ConnectWindow::ConnectWindowItem::firewallClick, this, &MainWindow::onConnectWindowFirewallClick);
     connect(mainWindowController_->getConnectWindow(), &ConnectWindow::ConnectWindowItem::networkButtonClick, this, &MainWindow::onConnectWindowNetworkButtonClick);
     connect(mainWindowController_->getConnectWindow(), &ConnectWindow::ConnectWindowItem::locationsClick, this, &MainWindow::onConnectWindowLocationsClick);
@@ -960,6 +966,63 @@ void MainWindow::onLoginTwoFactorAuthWindowClick(const QString &username, const 
     mainWindowController_->getTwoFactorAuthWindow()->setLoginMode(false);
     mainWindowController_->getTwoFactorAuthWindow()->setCurrentCredentials(username, password);
     mainWindowController_->changeWindow(MainWindowController::WINDOW_ID_TWO_FACTOR_AUTH);
+}
+
+void MainWindow::onConnectWindowAutoTryClick()
+{
+    AutoTryConnectManager *manager = backend_->autoTryConnectManager();
+    if (manager->isActive()) {
+        manager->cancel();
+        return;
+    }
+
+    // Auto-Try enumerates the server list, which means nothing for a custom config or a static IP:
+    // both connect to one fixed endpoint.
+    if (!selectedLocation_->isValid() || selectedLocation_->locationdId().isCustomConfigsLocation() ||
+        selectedLocation_->locationdId().isStaticIpsLocation()) {
+        GeneralMessageController::instance().showMessage(
+            "WARNING_YELLOW",
+            tr("Auto-Try Unavailable"),
+            tr("Auto-Try works with locations, not Custom Configs or Static IPs."),
+            GeneralMessageController::tr(GeneralMessageController::kOk));
+        return;
+    }
+
+    mainWindowController_->collapseLocations();
+    manager->start(selectedLocation_->locationdId());
+}
+
+void MainWindow::onAutoTryProgressChanged(int index, int total, const QString &protocolLabel, const QString &locationLabel)
+{
+    mainWindowController_->getConnectWindow()->setAutoTryProgress(index, total);
+    qCInfo(LOG_BASIC) << "Auto-Try progress" << index << "/" << total << protocolLabel << locationLabel;
+}
+
+void MainWindow::onAutoTryConnected()
+{
+    mainWindowController_->getConnectWindow()->setAutoTryConnected();
+}
+
+void MainWindow::onAutoTryFailed()
+{
+    mainWindowController_->getConnectWindow()->setAutoTryIdle();
+    GeneralMessageController::instance().showMessage(
+        "ERROR_ICON",
+        tr("Auto-Try Failed"),
+        tr("Auto-Try could not connect to any location or protocol."),
+        GeneralMessageController::tr(GeneralMessageController::kOk));
+}
+
+void MainWindow::onAutoTryCancelled()
+{
+    mainWindowController_->getConnectWindow()->setAutoTryIdle();
+}
+
+void MainWindow::onAutoTryAborted()
+{
+    // Stopped early on an error no other location would get past. The disconnect handler is about to
+    // report that error, so only the button is reset here.
+    mainWindowController_->getConnectWindow()->setAutoTryIdle();
 }
 
 void MainWindow::onConnectWindowConnectClick()
@@ -2119,6 +2182,13 @@ void MainWindow::onBackendConnectStateChanged(const types::ConnectState &connect
 {
     splitTunnelFailurePolicy_.onConnectionStateChanged(connectState.connectState);
     mainWindowController_->getConnectWindow()->updateConnectState(connectState);
+
+    // A successful sweep leaves the button on its connected look. The session can end later (user
+    // disconnect, failover), and the button must not keep claiming a sweep is live. While a sweep is
+    // running this state churns between attempts, so only a settled disconnect resets it.
+    if (connectState.connectState == CONNECT_STATE_DISCONNECTED && !backend_->autoTryConnectManager()->isActive()) {
+        mainWindowController_->getConnectWindow()->setAutoTryIdle();
+    }
 
     if (connectState.location.isValid()) {
         // if connecting/connected location not equal current selected location, then change current selected location and update in GUI
@@ -3545,6 +3615,12 @@ void MainWindow::setInitialFirewallState()
 void MainWindow::handleDisconnectWithError(const types::ConnectState &connectState)
 {
     WS_ASSERT(connectState.disconnectReason == DISCONNECTED_WITH_ERROR);
+
+    // A sweep treats every attempt failure as "try the next one", so it must not pop a dialog per
+    // location. It reports a single outcome of its own when it ends.
+    if (backend_->autoTryConnectManager()->isActive()) {
+        return;
+    }
 
     QString msg;
     if (connectState.connectError == ConnectError::kLocationUnavailable) {

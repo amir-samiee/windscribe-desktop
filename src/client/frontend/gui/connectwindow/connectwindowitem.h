@@ -4,6 +4,7 @@
 #include <QVariantAnimation>
 
 #include "background.h"
+#include "autotrybutton.h"
 #include "commongraphics/iconbutton.h"
 #include "commongraphics/imageitem.h"
 #include "commongraphics/textbutton.h"
@@ -59,6 +60,11 @@ public slots:
     // Whether the rotate item may be used right now; the app decides this for the GUI and the command line alike.
     void setIpRotateReady(bool ready);
 
+    // Auto-Try: idle, walking the grid, or the location a sweep connected to.
+    void setAutoTryIdle();
+    void setAutoTryProgress(int index, int total);
+    void setAutoTryConnected();
+
     void onConnectStateTextHoverEnter();
     void onConnectStateTextHoverLeave();
     void onFirewallButtonHoverLeave();
@@ -91,6 +97,7 @@ signals:
     void closeClick();
     void preferencesClick();
     void connectClick();
+    void autoTryClick();
     void firewallClick();
     void locationsClick();
     void notificationsClick();
@@ -122,6 +129,7 @@ private:
 
     Background *background_;
     ConnectButton *connectButton_;
+    AutoTryButton *autoTryButton_;
     ConnectStateProtocolPort *connectStateProtocolPort_;
     CommonGraphics::TextButton *cityName1Text_;
     CommonGraphics::TextButton *cityName2Text_;

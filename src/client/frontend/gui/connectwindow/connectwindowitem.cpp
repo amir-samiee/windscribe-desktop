@@ -51,6 +51,9 @@ ConnectWindowItem::ConnectWindowItem(QGraphicsObject *parent, Preferences *prefe
     connectButton_ = new ConnectButton(this);
     connect(connectButton_, &ConnectButton::clicked, this, &ConnectWindowItem::connectClick);
 
+    autoTryButton_ = new AutoTryButton(this);
+    connect(autoTryButton_, &AutoTryButton::clicked, this, &ConnectWindowItem::autoTryClick);
+
     connectStateProtocolPort_ = new ConnectStateProtocolPort(this);
     connect(connectStateProtocolPort_, &ClickableGraphicsObject::hoverEnter, this, &ConnectWindowItem::onConnectStateTextHoverEnter);
     connect(connectStateProtocolPort_, &ClickableGraphicsObject::hoverLeave, this, &ConnectWindowItem::onConnectStateTextHoverLeave);
@@ -169,6 +172,7 @@ void ConnectWindowItem::setClickable(bool isClickable)
     closeButton_->setClickable(isClickable);
 
     connectButton_->setClickable(isClickable);
+    autoTryButton_->setClickableHoverable(isClickable, isClickable);
     preferencesButton_->setClickable(isClickable);
     firewallButton_->setClickable(isClickable);
     locationsButton_->setClickable(isClickable);
@@ -319,6 +323,24 @@ void ConnectWindowItem::setProtocolPort(const types::Protocol &protocol, const u
 {
     connectStateProtocolPort_->setProtocolPort(protocol, port);
     preferencesHelper_->setCurrentProtocol(protocol);
+}
+
+void ConnectWindowItem::setAutoTryIdle()
+{
+    autoTryButton_->setIdle();
+    updatePositions();
+}
+
+void ConnectWindowItem::setAutoTryProgress(int index, int total)
+{
+    autoTryButton_->setProgress(index, total);
+    updatePositions();
+}
+
+void ConnectWindowItem::setAutoTryConnected()
+{
+    autoTryButton_->setConnected();
+    updatePositions();
 }
 
 void ConnectWindowItem::onConnectStateTextHoverEnter()
@@ -533,6 +555,8 @@ void ConnectWindowItem::updatePositions()
         cityName2Text_->setPos(24*G_SCALE + cityName1Text_->boundingRect().width(), 105*G_SCALE);
 #endif
         connectStateProtocolPort_->setPos(13*G_SCALE, 74*G_SCALE);
+        autoTryButton_->setPos(static_cast<int>(connectButton_->pos().x() + connectButton_->boundingRect().width()) - static_cast<int>(autoTryButton_->boundingRect().width()),
+                               static_cast<int>(connectButton_->pos().y() + connectButton_->boundingRect().height()) + 4*G_SCALE);
         locationsButton_->setPos(97*G_SCALE, 183*G_SCALE);
         networkTrustButton_->setPos(16*G_SCALE, 147*G_SCALE);
         ipAddressItem_->setPos(boundingRect().width() - ipAddressItem_->boundingRect().width() - 40*G_SCALE, 147*G_SCALE + (networkTrustButton_->boundingRect().height() - ipAddressItem_->boundingRect().height()) / 2);
@@ -556,6 +580,8 @@ void ConnectWindowItem::updatePositions()
         preferencesButton_->setPos(22*G_SCALE, 33*G_SCALE);
         logoButton_->setPos(54*G_SCALE, 27*G_SCALE);
         connectButton_->setPos(254*G_SCALE, 41*G_SCALE);
+        autoTryButton_->setPos(static_cast<int>(connectButton_->pos().x() + connectButton_->boundingRect().width()) - static_cast<int>(autoTryButton_->boundingRect().width()),
+                               static_cast<int>(connectButton_->pos().y() + connectButton_->boundingRect().height()) + 4*G_SCALE);
         connectStateProtocolPort_->setPos(13*G_SCALE, 90*G_SCALE);
         cityName1Text_->setPos(16*G_SCALE, 118*G_SCALE);
         cityName2Text_->setPos(24*G_SCALE + cityName1Text_->boundingRect().width(), 118*G_SCALE);
@@ -581,8 +607,10 @@ void ConnectWindowItem::updateShortenedText()
     QFont font2 = cityName2Text_->getFont();
     QFontMetrics fm2(font2);
 
-    // 16px on either end and 8px between the two names
-    int availableWidth = boundingRect().width() - 40*G_SCALE;
+    // 16px on either end and 8px between the two names. The Auto-Try button sits at the right end of
+    // this row's band, so the names must stop short of it.
+    int availableWidth = boundingRect().width() - 40*G_SCALE
+                         - static_cast<int>(autoTryButton_->boundingRect().width()) - 8*G_SCALE;
 
     // Everything fits, no need to elide
     if (fm1.horizontalAdvance(fullFirstName_) + fm2.horizontalAdvance(fullSecondName_) <= availableWidth) {

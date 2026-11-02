@@ -1,4 +1,6 @@
 target_sources(gui PRIVATE
+    autotrybutton.cpp
+    autotrybutton.h
     background.cpp
     background.h
     backgroundimage/backgroundimage.cpp

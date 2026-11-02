@@ -37,6 +37,7 @@ enum TooltipId {
     TOOLTIP_ID_STATIC_IP_DEVICE_NAME,
     TOOLTIP_ID_ELIDED_TEXT,
     TOOLTIP_ID_IP_UTILS_MENU,
+    TOOLTIP_ID_AUTO_TRY,
 };
 
 enum TooltipType {
