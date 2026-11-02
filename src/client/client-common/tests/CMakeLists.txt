@@ -1,4 +1,16 @@
 if(IS_BUILD_TESTS)
+    add_executable(bruteforcesequence.test
+        bruteforcesequence.test.cpp
+        bruteforcesequence.test.h
+    )
+    target_link_libraries(bruteforcesequence.test PRIVATE
+        Qt6::Test client-common spdlog::spdlog ${OS_SPECIFIC_LIBRARIES})
+    target_include_directories(bruteforcesequence.test PRIVATE
+        ${PROJECT_DIRECTORY}/client-common
+    )
+    set_target_properties(bruteforcesequence.test PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+    ws_add_test(bruteforcesequence)
+
     add_executable(locationsmodel.test
         locationsmodel.test.cpp
         locationsmodel.test.h

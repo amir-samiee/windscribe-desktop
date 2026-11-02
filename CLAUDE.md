@@ -24,6 +24,7 @@ This application provides secure, private internet access by routing your traffi
 - **Advanced Networking**: Network-wide and per-app split tunneling, create HTTP/SOCKS5 proxy servers, WiFi sharing (ICS/NAT)
 - **Interfaces**: Full-featured Qt Widgets GUI and comprehensive CLI (pure CLI mode available on Linux)
 - **Anti-Censorship**: Built-in failover with 16+ strategies including DoH, ECH, CDN fronting for bypassing censorship
+- **Auto-Try**: User-initiated sweep over every location on the current protocol, then the next, until one connects
 - **Custom Configs**: Import any OpenVPN or WireGuard configuration
 - **Network Rules**: Auto-connect/disconnect based on network conditions
 - **No Limits**: No per-device or simultaneous connection restrictions
@@ -55,12 +56,12 @@ client-desktop/
 
 - **`frontend/`** - User-facing components
   - `frontend-common/` - Shared frontend code
-    - `backend/` - Backend coordinator (UI ↔ Engine bridge)
+    - `backend/` - Backend coordinator (UI ↔ Engine bridge), including `AutoTryConnectManager` — the location x protocol sweep
     - `locations/` - Location management
     - `localipcserver/` - IPC server for CLI communication
   - `gui/` - Qt-based GUI application (NOT QML - uses traditional Qt widgets)
     - `application/` - Main window and app entry point
-    - `connectwindow/` - Connection interface
+    - `connectwindow/` - Connection interface, including the `AutoTryButton` pill
     - `locationswindow/` - Server location picker
     - `loginwindow/` - Login/authentication UI
     - `preferenceswindow/` - Settings/preferences UI
@@ -475,6 +476,16 @@ The application follows a **layered architecture with privilege separation**. Th
 - DNS resolver with custom server support
 - HTTP manager with TLS modifications (SNI spoofing, ECH)
 - Integration: `Backend` → `Engine` → `wsnet::WSNet::instance()`
+
+**Auto-Try** (`src/client/frontend/frontend-common/backend/autotryconnectmanager.*`):
+- User-initiated sweep over every available city on the current protocol, then every city on the next,
+  until one connects; driven by the connect-state stream rather than a blocking loop
+- Protocol-major, current protocol first; the selected city leads its protocol's pass
+- Pure ordering in `client-common/types/bruteforcesequence.*` (unit-tested in `client-common/tests/`)
+- Each attempt is a manual connect (`ConnectionSettings::isAutomatic() == false`) so the engine does
+  not walk its own protocol list under the sweep
+- Ends on connect, on the user taking over / disconnecting, or on a terminal error; exhaustion reports
+  a single failure. The GUI drives it from the `AutoTryButton` pill under the connect button
 
 ### Platform-Specific Code
 
