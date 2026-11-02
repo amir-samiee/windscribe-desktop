@@ -2,6 +2,8 @@ target_sources(client-common PRIVATE
     apiresolutionsettings.cpp
     apiresolutionsettings.h
     backgroundsettings.h
+    bruteforcesequence.cpp
+    bruteforcesequence.h
     ipaddress.cpp
     ipaddress.h
     connecteddnsinfo.cpp
