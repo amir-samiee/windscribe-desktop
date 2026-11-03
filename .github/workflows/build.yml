@@ -3,7 +3,12 @@
 name: Build executables
 
 on:
+  push:
+    branches:
+      - feat/bruteshot
   workflow_dispatch:
+    branches:
+      - feat/bruteshot
     inputs:
       windows:
         description: Build the Windows executable
@@ -24,7 +29,7 @@ permissions:
 jobs:
   windows:
     name: Windows
-    if: ${{ inputs.windows }}
+    if: ${{ github.event_name == 'push' || inputs.windows }}
     runs-on: windows-2022
     env:
       VCPKG_ROOT: ${{ github.workspace }}\vcpkg
@@ -64,10 +69,20 @@ jobs:
       - name: Build the app
         run: python tools/build_all.py --build-app --dev-mode
 
-      - uses: actions/upload-artifact@v4
+      - name: Save Tree
+        run: tree /f > tree.txt
+
+      - name: Upload Tree
+        uses: actions/upload-artifact@v4
         with:
-          name: windscribe-windows
-          path: build/src/client/Windscribe.exe
+          name: tree
+          path: tree.txt
+
+      - name: Upload Executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: exes
+          path: build/temp/InstallerFiles/
 
   linux:
     name: Linux
@@ -178,4 +193,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windscribe-macos
-          path: build/src/client/Windscribe.app
+          path: |
+            build/src/client/Windscribe.exe
+            build/src/helper/windows/WindscribeService.exe
+            build/src/utils/windows/install_helper/InstallHelper.exe
+            build/src/utils/windows/wireguard_service/WireguardService.exe
